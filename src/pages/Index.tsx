@@ -8,44 +8,45 @@ import { Egg } from 'lucide-react';
 const Index = () => {
   return (
     <MessProvider>
-      <div className="min-h-screen bg-background">
-        {/* Header */}
-        <header className="border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-20">
-          <div className="container max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
-            <div className="bg-primary rounded-xl p-2">
-              <Egg className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <div>
-              <h1 className="text-lg font-display font-bold text-foreground leading-tight">EggTracker</h1>
-              <p className="text-xs text-muted-foreground">Mess egg consumption tracker</p>
-            </div>
-          </div>
-        </header>
+      <div className="min-h-screen bg-background relative">
+        {/* Fixed snake animation layer - covers entire screen */}
+        <div className="fixed inset-0 z-10 pointer-events-none">
+          <SnakeCanvas />
+        </div>
 
-        {/* Main */}
-        <main className="container max-w-6xl mx-auto px-4 py-6">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Center: Tray + Snake arena */}
-            <div className="lg:col-span-6 flex items-start justify-center">
-              <div className="relative w-full max-w-[500px] aspect-[3/2]">
-                {/* Snake animation layer */}
-                <SnakeCanvas />
-                {/* Tray centered on top */}
-                <div className="absolute inset-0 flex items-center justify-center z-0">
-                  <EggTray />
+        {/* Scrollable content slides under the animation */}
+        <div className="relative z-0">
+          {/* Header */}
+          <header className="border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-20">
+            <div className="container max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
+              <div className="bg-primary rounded-xl p-2">
+                <Egg className="h-5 w-5 text-primary-foreground" />
+              </div>
+              <div>
+                <h1 className="text-lg font-display font-bold text-foreground leading-tight">EggTracker</h1>
+                <p className="text-xs text-muted-foreground">Mess egg consumption tracker</p>
+              </div>
+            </div>
+          </header>
+
+          {/* Main */}
+          <main className="container max-w-6xl mx-auto px-4 py-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Center: Tray */}
+              <div className="lg:col-span-6 flex items-start justify-center">
+                <EggTray />
+              </div>
+
+              {/* Right: Members + Controls */}
+              <div className="lg:col-span-6 flex flex-col gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <MemberPanel />
+                  <TrayControls />
                 </div>
               </div>
             </div>
-
-            {/* Right: Members + Controls */}
-            <div className="lg:col-span-6 flex flex-col gap-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <MemberPanel />
-                <TrayControls />
-              </div>
-            </div>
-          </div>
-        </main>
+          </main>
+        </div>
       </div>
     </MessProvider>
   );

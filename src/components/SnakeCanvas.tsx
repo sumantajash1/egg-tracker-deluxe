@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { useMessContext } from '@/context/MessContext';
 
 interface SnakeSegment {
@@ -20,12 +20,6 @@ interface Snake {
   baseLength: number;
 }
 
-const CANVAS_W = 600;
-const CANVAS_H = 400;
-const TRAY_CX = CANVAS_W / 2;
-const TRAY_CY = CANVAS_H / 2;
-const TRAY_W = 200;
-const TRAY_H = 240;
 const SEG_SPACING = 6;
 const BASE_SEGMENTS = 8;
 const SEGMENTS_PER_EGG = 3;
@@ -34,8 +28,25 @@ const SnakeCanvas = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const snakesRef = useRef<Snake[]>([]);
   const animRef = useRef<number>(0);
+  const sizeRef = useRef({ w: window.innerWidth, h: window.innerHeight });
   const { members, lastEatEvent } = useMessContext();
   const prevEventRef = useRef<number | null>(null);
+  const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight });
+
+  // Resize handler
+  useEffect(() => {
+    const onResize = () => {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      sizeRef.current = { w, h };
+      setSize({ w, h });
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  const cx = () => sizeRef.current.w / 2;
+  const cy = () => sizeRef.current.h / 2;
 
   // Initialize / sync snakes with members
   useEffect(() => {
@@ -43,13 +54,12 @@ const SnakeCanvas = () => {
     const newSnakes: Snake[] = members.map((m, i) => {
       const prev = existing.find(s => s.memberId === m.id);
       const angle = (i / members.length) * Math.PI * 2;
-      const spawnR = 160;
-      const sx = TRAY_CX + Math.cos(angle) * spawnR;
-      const sy = TRAY_CY + Math.sin(angle) * spawnR;
+      const spawnR = Math.min(sizeRef.current.w, sizeRef.current.h) * 0.35;
+      const sx = cx() + Math.cos(angle) * spawnR;
+      const sy = cy() + Math.sin(angle) * spawnR;
       const segCount = BASE_SEGMENTS + m.eggsEaten * SEGMENTS_PER_EGG;
 
       if (prev) {
-        // Update color/pattern, adjust segment count
         while (prev.segments.length < segCount) {
           const last = prev.segments[prev.segments.length - 1];
           prev.segments.push({ x: last.x, y: last.y });
@@ -83,7 +93,7 @@ const SnakeCanvas = () => {
     snakesRef.current = newSnakes;
   }, [members]);
 
-  // Handle eat events - send snake to tray
+  // Handle eat events
   useEffect(() => {
     if (!lastEatEvent || lastEatEvent.timestamp === prevEventRef.current) return;
     prevEventRef.current = lastEatEvent.timestamp;
@@ -91,11 +101,12 @@ const SnakeCanvas = () => {
     const snake = snakesRef.current.find(s => s.memberId === lastEatEvent.memberId);
     if (!snake) return;
 
-    // Calculate egg position on tray
     const row = Math.floor(lastEatEvent.eggIndex / 5);
     const col = lastEatEvent.eggIndex % 5;
-    const eggX = TRAY_CX - TRAY_W / 2 + 20 + col * (TRAY_W / 5);
-    const eggY = TRAY_CY - TRAY_H / 2 + 20 + row * (TRAY_H / 6);
+    const trayW = 260;
+    const trayH = 300;
+    const eggX = cx() - trayW / 2 + 20 + col * (trayW / 5);
+    const eggY = cy() - trayH / 2 + 20 + row * (trayH / 6);
 
     snake.targetX = eggX;
     snake.targetY = eggY;
@@ -109,35 +120,38 @@ const SnakeCanvas = () => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    const W = sizeRef.current.w;
+    const H = sizeRef.current.h;
+    const CX = W / 2;
+    const CY = H / 2;
+
+    ctx.clearRect(0, 0, W, H);
 
     for (const snake of snakesRef.current) {
       const head = snake.segments[0];
       if (!head) continue;
 
-      // Movement logic
       const dx = snake.targetX - head.x;
       const dy = snake.targetY - head.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
 
       if (snake.state === 'idle') {
-        // Smooth wandering
         snake.idleAngle += snake.idleSpeed;
         const memberIdx = snakesRef.current.indexOf(snake);
         const baseAngle = (memberIdx / snakesRef.current.length) * Math.PI * 2;
-        const wanderR = 40 + Math.sin(snake.idleAngle * 0.7) * 20;
-        const orbitR = 150;
-        snake.targetX = TRAY_CX + Math.cos(baseAngle + snake.idleAngle * 0.3) * orbitR + Math.cos(snake.idleAngle) * wanderR;
-        snake.targetY = TRAY_CY + Math.sin(baseAngle + snake.idleAngle * 0.3) * orbitR + Math.sin(snake.idleAngle * 1.3) * wanderR * 0.6;
+        const wanderR = 60 + Math.sin(snake.idleAngle * 0.7) * 40;
+        const orbitR = Math.min(W, H) * 0.3;
+        snake.targetX = CX + Math.cos(baseAngle + snake.idleAngle * 0.3) * orbitR + Math.cos(snake.idleAngle) * wanderR;
+        snake.targetY = CY + Math.sin(baseAngle + snake.idleAngle * 0.3) * orbitR + Math.sin(snake.idleAngle * 1.3) * wanderR * 0.6;
         snake.speed = 1.5;
       }
 
       if (snake.state === 'hunting' && dist < 8) {
-        // Reached egg, return to orbit
         const memberIdx = snakesRef.current.indexOf(snake);
         const baseAngle = (memberIdx / snakesRef.current.length) * Math.PI * 2;
-        snake.targetX = TRAY_CX + Math.cos(baseAngle) * 150;
-        snake.targetY = TRAY_CY + Math.sin(baseAngle) * 150;
+        const orbitR = Math.min(W, H) * 0.3;
+        snake.targetX = CX + Math.cos(baseAngle) * orbitR;
+        snake.targetY = CY + Math.sin(baseAngle) * orbitR;
         snake.state = 'returning';
         snake.speed = 3;
       }
@@ -147,13 +161,11 @@ const SnakeCanvas = () => {
         snake.speed = 1.5;
       }
 
-      // Move head toward target
       if (dist > 1) {
         head.x += (dx / dist) * snake.speed;
         head.y += (dy / dist) * snake.speed;
       }
 
-      // Follow segments
       for (let i = 1; i < snake.segments.length; i++) {
         const prev = snake.segments[i - 1];
         const seg = snake.segments[i];
@@ -166,18 +178,14 @@ const SnakeCanvas = () => {
         }
       }
 
-      // Draw snake
+      // Draw body
       const segCount = snake.segments.length;
-      
-      // Body
       for (let i = segCount - 1; i >= 1; i--) {
         const seg = snake.segments[i];
         const t = 1 - i / segCount;
         const radius = 2.5 + t * 4;
-        
         ctx.beginPath();
         ctx.arc(seg.x, seg.y, radius, 0, Math.PI * 2);
-        
         if (snake.pattern === 'dotted' && i % 3 === 0) {
           ctx.fillStyle = lightenColor(snake.color, 40);
         } else if (snake.pattern === 'striped' && i % 4 < 2) {
@@ -223,7 +231,6 @@ const SnakeCanvas = () => {
         const tx = head.x + eyeOffX * (7 + tongueLen);
         const ty = head.y + eyeOffY * (7 + tongueLen);
         ctx.lineTo(tx, ty);
-        // Fork
         ctx.moveTo(tx, ty);
         ctx.lineTo(tx + perpX * 3 + eyeOffX * 3, ty + perpY * 3 + eyeOffY * 3);
         ctx.moveTo(tx, ty);
@@ -245,9 +252,9 @@ const SnakeCanvas = () => {
   return (
     <canvas
       ref={canvasRef}
-      width={CANVAS_W}
-      height={CANVAS_H}
-      className="absolute inset-0 w-full h-full pointer-events-none z-10"
+      width={size.w}
+      height={size.h}
+      className="w-full h-full pointer-events-none"
       style={{ imageRendering: 'auto' }}
     />
   );

@@ -11,15 +11,8 @@ const EggTray = () => {
   const totalConsumed = eggs.filter(e => e.consumed).length;
 
   return (
-    <div className="flex flex-col items-center gap-3">
-      <div className="flex items-center justify-between w-full px-1">
-        <h2 className="text-sm font-display font-bold text-foreground">🥚 Egg Tray</h2>
-        <span className="text-xs font-medium text-muted-foreground">
-          {30 - totalConsumed}/30
-        </span>
-      </div>
-
-      <div className="tray-container w-full max-w-[220px] mx-auto p-3">
+    <div className="flex flex-col items-center">
+      <div className="tray-container w-full max-w-[260px] mx-auto p-4">
         <div className="grid grid-cols-5 gap-1.5">
           {eggs.map((egg) => (
             <div key={egg.index} className="tray-cell flex items-center justify-center p-1">
