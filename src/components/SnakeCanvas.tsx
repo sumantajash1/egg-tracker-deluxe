@@ -18,15 +18,16 @@ interface Snake {
   idleAngle: number;
   idleSpeed: number;
   baseLength: number;
+  targetEggIndex?: number;
 }
 
-const CANVAS_W = 600;
-const CANVAS_H = 400;
+const CANVAS_W = 1200;
+const CANVAS_H = 2400;
 const TRAY_CX = CANVAS_W / 2;
 const TRAY_CY = CANVAS_H / 2;
-const SEG_SPACING = 8;
-const BASE_SEGMENTS = 12;
-const SEGMENTS_PER_EGG = 3;
+const SEG_SPACING = 14;
+const BASE_SEGMENTS = 20;
+const SEGMENTS_PER_EGG = 5;
 
 // Must match EggTray layout: p-3 (12px), cells 34x34, gap-1.5 (6px)
 const TRAY_PADDING = 12;
@@ -44,7 +45,7 @@ const SnakeCanvas = ({ trayContainerRef }: SnakeCanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const snakesRef = useRef<Snake[]>([]);
   const animRef = useRef<number>(0);
-  const { members, lastEatEvent } = useMessContext();
+  const { members, lastEatEvent, confirmEgg } = useMessContext();
   const prevEventRef = useRef<number | null>(null);
 
   // Initialize / sync snakes with members
@@ -83,10 +84,10 @@ const SnakeCanvas = ({ trayContainerRef }: SnakeCanvasProps) => {
         segments,
         targetX: sx,
         targetY: sy,
-        speed: 2 + Math.random(),
+        speed: 3.5 + Math.random() * 2,
         state: 'idle' as const,
         idleAngle: Math.random() * Math.PI * 2,
-        idleSpeed: 0.01 + Math.random() * 0.015,
+        idleSpeed: 0.015 + Math.random() * 0.02,
         baseLength: segCount,
       };
     });
@@ -108,7 +109,8 @@ const SnakeCanvas = ({ trayContainerRef }: SnakeCanvasProps) => {
       snake.targetX = eggX;
       snake.targetY = eggY;
       snake.state = 'hunting';
-      snake.speed = 5;
+      snake.speed = 18;
+      snake.targetEggIndex = lastEatEvent.eggIndex;
     };
 
     const computeFromDOM = () => {
@@ -170,30 +172,39 @@ const SnakeCanvas = ({ trayContainerRef }: SnakeCanvasProps) => {
       const dist = Math.sqrt(dx * dx + dy * dy);
 
       if (snake.state === 'idle') {
-        // Smooth wandering
+        // Smooth wandering over larger full-screen area
         snake.idleAngle += snake.idleSpeed;
         const memberIdx = snakesRef.current.indexOf(snake);
-        const baseAngle = (memberIdx / snakesRef.current.length) * Math.PI * 2;
-        const wanderR = 40 + Math.sin(snake.idleAngle * 0.7) * 20;
-        const orbitR = 150;
-        snake.targetX = TRAY_CX + Math.cos(baseAngle + snake.idleAngle * 0.3) * orbitR + Math.cos(snake.idleAngle) * wanderR;
-        snake.targetY = TRAY_CY + Math.sin(baseAngle + snake.idleAngle * 0.3) * orbitR + Math.sin(snake.idleAngle * 1.3) * wanderR * 0.6;
-        snake.speed = 1.5;
+        
+        const orbitR = 300 + Math.sin(snake.idleAngle * 0.3) * 250;
+        const wanderR = 150 + Math.sin(snake.idleAngle * 0.7) * 100;
+        
+        // Dynamic base angle to drift around the whole screen
+        const baseAngle = (memberIdx / snakesRef.current.length) * Math.PI * 2 + snake.idleAngle * 0.15;
+        
+        snake.targetX = TRAY_CX + Math.cos(baseAngle) * orbitR + Math.cos(snake.idleAngle * 1.1) * wanderR;
+        snake.targetY = TRAY_CY + Math.sin(baseAngle) * orbitR * 1.3 + Math.sin(snake.idleAngle * 1.4) * wanderR;
+        snake.speed = 3.5;
       }
 
-      if (snake.state === 'hunting' && dist < 8) {
-        // Reached egg, return to orbit
+      if (snake.state === 'hunting' && dist < 15) {
+        if (snake.targetEggIndex !== undefined) {
+          confirmEgg(snake.targetEggIndex);
+          snake.targetEggIndex = undefined;
+        }
+
+        // Reached egg, return to screen perimeter
         const memberIdx = snakesRef.current.indexOf(snake);
         const baseAngle = (memberIdx / snakesRef.current.length) * Math.PI * 2;
-        snake.targetX = TRAY_CX + Math.cos(baseAngle) * 150;
-        snake.targetY = TRAY_CY + Math.sin(baseAngle) * 150;
+        snake.targetX = TRAY_CX + Math.cos(baseAngle) * 500;
+        snake.targetY = TRAY_CY + Math.sin(baseAngle) * 600;
         snake.state = 'returning';
-        snake.speed = 3;
+        snake.speed = 6;
       }
 
-      if (snake.state === 'returning' && dist < 15) {
+      if (snake.state === 'returning' && dist < 30) {
         snake.state = 'idle';
-        snake.speed = 1.5;
+        snake.speed = 3.5;
       }
 
       // Move head toward target
@@ -222,7 +233,7 @@ const SnakeCanvas = ({ trayContainerRef }: SnakeCanvasProps) => {
       for (let i = segCount - 1; i >= 1; i--) {
         const seg = snake.segments[i];
         const t = 1 - i / segCount;
-        const radius = 4 + t * 5;
+        const radius = 6 + t * 9;
         
         ctx.beginPath();
         ctx.arc(seg.x, seg.y, radius, 0, Math.PI * 2);
@@ -239,7 +250,7 @@ const SnakeCanvas = ({ trayContainerRef }: SnakeCanvasProps) => {
 
       // Head
       ctx.beginPath();
-      ctx.arc(head.x, head.y, 10, 0, Math.PI * 2);
+      ctx.arc(head.x, head.y, 16, 0, Math.PI * 2);
       ctx.fillStyle = snake.color;
       ctx.fill();
 
@@ -252,33 +263,33 @@ const SnakeCanvas = ({ trayContainerRef }: SnakeCanvasProps) => {
       const perpY = eyeOffX;
 
       for (const side of [-1, 1]) {
-        const ex = head.x + eyeOffX * 3 + perpX * side * 5;
-        const ey = head.y + eyeOffY * 3 + perpY * side * 5;
+        const ex = head.x + eyeOffX * 5 + perpX * side * 8;
+        const ey = head.y + eyeOffY * 5 + perpY * side * 8;
         ctx.beginPath();
-        ctx.arc(ex, ey, 3, 0, Math.PI * 2);
+        ctx.arc(ex, ey, 4.5, 0, Math.PI * 2);
         ctx.fillStyle = '#fff';
         ctx.fill();
         ctx.beginPath();
-        ctx.arc(ex + eyeOffX * 1, ey + eyeOffY * 1, 1.4, 0, Math.PI * 2);
+        ctx.arc(ex + eyeOffX * 1.5, ey + eyeOffY * 1.5, 2.2, 0, Math.PI * 2);
         ctx.fillStyle = '#222';
         ctx.fill();
       }
 
       // Tongue (when hunting)
       if (snake.state === 'hunting') {
-        const tongueLen = 8 + Math.sin(Date.now() * 0.02) * 3;
+        const tongueLen = 12 + Math.sin(Date.now() * 0.02) * 5;
         ctx.beginPath();
-        ctx.moveTo(head.x + eyeOffX * 10, head.y + eyeOffY * 10);
-        const tx = head.x + eyeOffX * (10 + tongueLen);
-        const ty = head.y + eyeOffY * (10 + tongueLen);
+        ctx.moveTo(head.x + eyeOffX * 16, head.y + eyeOffY * 16);
+        const tx = head.x + eyeOffX * (16 + tongueLen);
+        const ty = head.y + eyeOffY * (16 + tongueLen);
         ctx.lineTo(tx, ty);
         // Fork
         ctx.moveTo(tx, ty);
-        ctx.lineTo(tx + perpX * 3 + eyeOffX * 3, ty + perpY * 3 + eyeOffY * 3);
+        ctx.lineTo(tx + perpX * 4 + eyeOffX * 4, ty + perpY * 4 + eyeOffY * 4);
         ctx.moveTo(tx, ty);
-        ctx.lineTo(tx - perpX * 3 + eyeOffX * 3, ty - perpY * 3 + eyeOffY * 3);
+        ctx.lineTo(tx - perpX * 4 + eyeOffX * 4, ty - perpY * 4 + eyeOffY * 4);
         ctx.strokeStyle = '#e74c3c';
-        ctx.lineWidth = 1.2;
+        ctx.lineWidth = 2;
         ctx.stroke();
       }
     }

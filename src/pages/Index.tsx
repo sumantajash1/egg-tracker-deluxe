@@ -11,7 +11,12 @@ const Index = () => {
 
   return (
     <MessProvider>
-      <div className="h-screen flex flex-col bg-background overflow-hidden">
+      <div className="h-screen flex flex-col bg-background overflow-hidden relative">
+        {/* Full-screen snake layer */}
+        <div className="absolute inset-0 z-30 pointer-events-none">
+          <SnakeCanvas trayContainerRef={trayContainerRef} />
+        </div>
+
         {/* Header – always visible */}
         <header className="shrink-0 border-b border-border bg-card/80 backdrop-blur-sm z-20">
           <div className="container max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
@@ -29,10 +34,6 @@ const Index = () => {
         <div className="shrink-0 bg-background z-10">
           <div className="container max-w-6xl mx-auto px-4 py-4 flex items-start justify-center">
             <div className="relative w-full max-w-[500px] lg:max-w-[400px]">
-              {/* Snake animation layer */}
-              <div className="absolute inset-0 overflow-hidden">
-                <SnakeCanvas trayContainerRef={trayContainerRef} />
-              </div>
               {/* Tray content flows naturally */}
               <div className="relative z-0 flex items-center justify-center py-4">
                 <EggTray trayContainerRef={trayContainerRef} />

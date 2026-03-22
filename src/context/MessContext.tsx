@@ -13,6 +13,7 @@ export interface Egg {
   index: number;
   consumed: boolean;
   ownerId: string | null;
+  isPending?: boolean;
 }
 
 export interface Group {
@@ -37,14 +38,23 @@ interface MessContextType {
   removeMember: (id: string) => void;
   incrementEgg: (memberId: string) => void;
   decrementEgg: (memberId: string) => void;
+  confirmEgg: (eggIndex: number) => void;
   resetTray: () => void;
   pricePerEgg: number;
   lastEatEvent: EatEvent | null;
 }
 
 const MEMBER_COLORS = [
-  '#e74c3c', '#3498db', '#2ecc71', '#9b59b6',
-  '#f39c12', '#1abc9c', '#e67e22', '#e84393',
+  '#8b5cf6', // violet
+  '#3b82f6', // blue
+  '#22c55e', // green
+  '#eab308', // yellow
+  '#f97316', // orange
+  '#ef4444', // red
+  '#000000', // black
+  '#8b4513', // brown
+  '#6b7280', // gray
+  '#ec4899'  // pink
 ];
 
 const createInitialEggs = (): Egg[] =>
@@ -96,7 +106,7 @@ export const MessProvider = ({ children }: { children: ReactNode }) => {
       setLastEatEvent({ memberId, eggIndex: randomEgg.index, timestamp: Date.now() });
 
       return prev.map(e =>
-        e.index === randomEgg.index ? { ...e, consumed: true, ownerId: memberId } : e
+        e.index === randomEgg.index ? { ...e, consumed: true, ownerId: memberId, isPending: true } : e
       );
     });
     setMembers(prev => prev.map(m =>
@@ -108,14 +118,18 @@ export const MessProvider = ({ children }: { children: ReactNode }) => {
     setEggs(prev => {
       const memberEggs = prev.filter(e => e.ownerId === memberId);
       if (memberEggs.length === 0) return prev;
-      const lastEgg = memberEggs[memberEggs.length - 1];
+          const lastEgg = memberEggs[memberEggs.length - 1];
       return prev.map(e =>
-        e.index === lastEgg.index ? { ...e, consumed: false, ownerId: null } : e
+        e.index === lastEgg.index ? { ...e, consumed: false, ownerId: null, isPending: false } : e
       );
     });
     setMembers(prev => prev.map(m =>
       m.id === memberId ? { ...m, eggsEaten: Math.max(0, m.eggsEaten - 1) } : m
     ));
+  }, []);
+
+  const confirmEgg = useCallback((eggIndex: number) => {
+    setEggs(prev => prev.map(e => e.index === eggIndex ? { ...e, isPending: false } : e));
   }, []);
 
   const resetTray = useCallback(() => {
@@ -128,7 +142,7 @@ export const MessProvider = ({ children }: { children: ReactNode }) => {
     <MessContext.Provider value={{
       group, members, eggs, currentUserId,
       setTrayPrice, addMember, removeMember,
-      incrementEgg, decrementEgg, resetTray, pricePerEgg,
+      incrementEgg, decrementEgg, confirmEgg, resetTray, pricePerEgg,
       lastEatEvent,
     }}>
       {children}
