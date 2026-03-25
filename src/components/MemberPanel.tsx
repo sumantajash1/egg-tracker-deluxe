@@ -35,7 +35,7 @@ const MemberPanel = () => {
                     {member.name}
                   </span>
                   {member.id === currentUserId && (
-                    <span className="text-[10px] font-medium bg-primary/15 text-primary px-1.5 py-0.5 rounded-full">
+                    <span className="text-[10px] font-medium bg-green-500/15 text-green-600 px-1.5 py-0.5 rounded-full">
                       (You)
                     </span>
                   )}
