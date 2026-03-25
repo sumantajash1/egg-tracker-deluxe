@@ -18,9 +18,9 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 -- RLS
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can read own profile"
+CREATE POLICY "Users can read all profiles"
   ON public.profiles FOR SELECT
-  USING (auth.uid() = id);
+  USING (true);
 
 CREATE POLICY "Users can update own profile"
   ON public.profiles FOR UPDATE
@@ -95,10 +95,10 @@ CREATE POLICY "Authenticated users can read tray consumption"
 CREATE POLICY "Authenticated users can insert tray consumption"
   ON public.tray_consumption FOR INSERT
   TO authenticated
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK (true);
 
-CREATE POLICY "Authenticated users can update own tray consumption"
+CREATE POLICY "Authenticated users can update tray consumption"
   ON public.tray_consumption FOR UPDATE
   TO authenticated
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  USING (true)
+  WITH CHECK (true);

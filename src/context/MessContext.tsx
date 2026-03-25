@@ -43,6 +43,7 @@ interface MessContextType {
   resetTray: () => void;
   pricePerEgg: number;
   lastEatEvent: EatEvent | null;
+  createNewTray: (price: number) => Promise<void>;
 }
 
 const MEMBER_COLORS = [
@@ -82,31 +83,72 @@ export const MessProvider = ({ children }: { children: ReactNode }) => {
   const pricePerEgg = group.trayPrice > 0 ? group.trayPrice / 30 : 0;
 
   useEffect(() => {
-    const fetchProfiles = async () => {
+    const fetchInitialData = async () => {
       try {
-        const { data, error } = await supabase.from('profiles').select('*');
-        if (error) {
-          console.error("Error fetching profiles:", error);
-          return;
+        // 1. Fetch profiles
+        const { data: profiles, error: pError } = await supabase.from('profiles').select('*');
+        if (pError) throw pError;
+        
+        // 2. Fetch the latest tray
+        const { data: tray, error: tError } = await supabase
+          .from('egg_tray')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+          
+        let consumptionMap: Record<string, number> = {};
+        
+        // 3. If a tray exists, load its consumption
+        if (tray) {
+          setGroup(g => ({ ...g, trayPrice: Number(tray.price), id: tray.id }));
+          
+          const { data: consumptions } = await supabase
+            .from('tray_consumption')
+            .select('*')
+            .eq('tray_id', tray.id);
+            
+          if (consumptions) {
+            consumptions.forEach((c: any) => {
+              consumptionMap[c.user_id] = c.eggs_consumed;
+            });
+          }
         }
         
-        if (data) {
-          const fetchedMembers: Member[] = data.map((profile: any, index: number) => ({
-            id: profile.id,
-            name: profile.name || profile.email.split('@')[0], 
-            color: MEMBER_COLORS[index % MEMBER_COLORS.length],
+        // 4. Combine everything into state
+        if (profiles) {
+          const fetchedMembers: Member[] = profiles.map((p: any, i: number) => ({
+            id: p.id,
+            name: p.name || p.email.split('@')[0], 
+            color: MEMBER_COLORS[i % MEMBER_COLORS.length],
             pattern: 'striped',
-            eggsEaten: 0,
-            role: profile.id === currentUserId ? 'admin' : 'member'
+            eggsEaten: consumptionMap[p.id] || 0,
+            role: p.id === currentUserId ? 'admin' : 'member'
           }));
           setMembers(fetchedMembers);
+          
+          if (tray) {
+            let initial = createInitialEggs();
+            // Iterate members to randomly allocate visual eggs corresponding to their consumption count
+            fetchedMembers.forEach(m => {
+              for (let i = 0; i < m.eggsEaten; i++) {
+                const availableEggs = initial.filter(e => !e.consumed);
+                if (availableEggs.length === 0) break;
+                
+                const randomEgg = availableEggs[Math.floor(Math.random() * availableEggs.length)];
+                randomEgg.consumed = true;
+                randomEgg.ownerId = m.id;
+              }
+            });
+            setEggs(initial);
+          }
         }
       } catch (e) {
-        console.error("Supabase config or fetch failed", e);
+        console.error("Supabase app init failed", e);
       }
     };
 
-    fetchProfiles();
+    fetchInitialData();
   }, [currentUserId]);
 
   const setTrayPrice = useCallback((price: number) => {
@@ -118,7 +160,8 @@ export const MessProvider = ({ children }: { children: ReactNode }) => {
     setEggs(eggs => eggs.map(e => e.ownerId === id ? { ...e, consumed: false, ownerId: null } : e));
   }, []);
 
-  const incrementEgg = useCallback((memberId: string) => {
+  const incrementEgg = useCallback(async (memberId: string) => {
+    let newCount = 0;
     setEggs(prev => {
       const availableEggs = prev.filter(e => !e.consumed);
       if (availableEggs.length === 0) return prev;
@@ -130,12 +173,37 @@ export const MessProvider = ({ children }: { children: ReactNode }) => {
         e.index === randomEgg.index ? { ...e, consumed: true, ownerId: memberId, isPending: true } : e
       );
     });
-    setMembers(prev => prev.map(m =>
-      m.id === memberId ? { ...m, eggsEaten: m.eggsEaten + 1 } : m
-    ));
+    setMembers(prev => prev.map(m => {
+      if (m.id === memberId) {
+        newCount = m.eggsEaten + 1;
+        return { ...m, eggsEaten: newCount };
+      }
+      return m;
+    }));
+    
+    // Sync to DB
+    try {
+      const { data: tray } = await supabase
+        .from('egg_tray')
+        .select('id')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+        
+      if (tray) {
+        await supabase
+          .from('tray_consumption')
+          .update({ eggs_consumed: newCount })
+          .eq('tray_id', tray.id)
+          .eq('user_id', memberId);
+      }
+    } catch (e) {
+      console.error("Failed to commit increment to db:", e);
+    }
   }, []);
 
-  const decrementEgg = useCallback((memberId: string) => {
+  const decrementEgg = useCallback(async (memberId: string) => {
+    let newCount = 0;
     setEggs(prev => {
       const memberEggs = prev.filter(e => e.ownerId === memberId);
       if (memberEggs.length === 0) return prev;
@@ -144,9 +212,33 @@ export const MessProvider = ({ children }: { children: ReactNode }) => {
         e.index === lastEgg.index ? { ...e, consumed: false, ownerId: null, isPending: false } : e
       );
     });
-    setMembers(prev => prev.map(m =>
-      m.id === memberId ? { ...m, eggsEaten: Math.max(0, m.eggsEaten - 1) } : m
-    ));
+    setMembers(prev => prev.map(m => {
+      if (m.id === memberId) {
+        newCount = Math.max(0, m.eggsEaten - 1);
+        return { ...m, eggsEaten: newCount };
+      }
+      return m;
+    }));
+    
+    // Sync to DB
+    try {
+      const { data: tray } = await supabase
+        .from('egg_tray')
+        .select('id')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+        
+      if (tray) {
+        await supabase
+          .from('tray_consumption')
+          .update({ eggs_consumed: newCount })
+          .eq('tray_id', tray.id)
+          .eq('user_id', memberId);
+      }
+    } catch (e) {
+      console.error("Failed to commit decrement to db:", e);
+    }
   }, []);
 
   const confirmEgg = useCallback((eggIndex: number) => {
@@ -159,12 +251,48 @@ export const MessProvider = ({ children }: { children: ReactNode }) => {
     setLastEatEvent(null);
   }, []);
 
+  const createNewTray = useCallback(async (price: number) => {
+    try {
+      const { data: newTray, error: trayError } = await supabase
+        .from('egg_tray')
+        .insert({ price, eggs_remaining: 30 })
+        .select()
+        .single();
+        
+      if (trayError) {
+        console.error("Failed to create tray:", trayError);
+        return;
+      }
+      
+      if (newTray && members.length > 0) {
+        const consumptionData = members.map(member => ({
+          tray_id: newTray.id,
+          user_id: member.id,
+          eggs_consumed: 0
+        }));
+        
+        const { error: consumptionError } = await supabase
+          .from('tray_consumption')
+          .insert(consumptionData);
+          
+        if (consumptionError) {
+          console.error("Failed to create consumption records:", consumptionError);
+        }
+      }
+      
+      setGroup(g => ({ ...g, trayPrice: price }));
+      resetTray();
+    } catch (error) {
+      console.error("Error creating new tray:", error);
+    }
+  }, [members, resetTray]);
+
   return (
     <MessContext.Provider value={{
       group, members, eggs, currentUserId,
       setTrayPrice, removeMember,
       incrementEgg, decrementEgg, confirmEgg, resetTray, pricePerEgg,
-      lastEatEvent,
+      lastEatEvent, createNewTray,
     }}>
       {children}
     </MessContext.Provider>

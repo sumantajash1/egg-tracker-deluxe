@@ -35,8 +35,8 @@ const Index = () => {
                 <Egg className="h-5 w-5 text-primary-foreground" />
               </div>
               <div>
-                <h1 className="text-lg font-display font-bold text-foreground leading-tight">EggTracker</h1>
-                <p className="text-xs text-muted-foreground">Mess egg consumption tracker</p>
+                <h1 className="text-lg font-display font-bold text-foreground leading-tight">Eggzactly</h1>
+                <p className="text-xs text-muted-foreground">Shared living egg consumption tracker</p>
               </div>
             </div>
             <Button variant="ghost" size="sm" onClick={handleSignOut} className="gap-1.5">
@@ -50,10 +50,6 @@ const Index = () => {
         <div className="shrink-0 bg-background z-10">
           <div className="container max-w-6xl mx-auto px-4 py-4 flex items-start justify-center">
             <div className="relative w-full max-w-[500px] lg:max-w-[400px]">
-              {/* Snake animation layer */}
-              <div className="absolute inset-0 overflow-hidden">
-                <SnakeCanvas trayContainerRef={trayContainerRef} />
-              </div>
               {/* Tray content flows naturally */}
               <div className="relative z-0 flex items-center justify-center py-4">
                 <EggTray trayContainerRef={trayContainerRef} />

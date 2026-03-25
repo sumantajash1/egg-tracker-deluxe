@@ -25,7 +25,7 @@ const CANVAS_W = 1200;
 const CANVAS_H = 2400;
 const TRAY_CX = CANVAS_W / 2;
 const TRAY_CY = CANVAS_H / 2;
-const SEG_SPACING = 14;
+const SEG_SPACING = 20;
 const BASE_SEGMENTS = 20;
 const SEGMENTS_PER_EGG = 5;
 
@@ -233,7 +233,7 @@ const SnakeCanvas = ({ trayContainerRef }: SnakeCanvasProps) => {
       for (let i = segCount - 1; i >= 1; i--) {
         const seg = snake.segments[i];
         const t = 1 - i / segCount;
-        const radius = 6 + t * 9;
+        const radius = 12 + t * 18; // Make it significantly thicker (tails at 12px up to 30px near head)
         
         ctx.beginPath();
         ctx.arc(seg.x, seg.y, radius, 0, Math.PI * 2);
@@ -250,7 +250,7 @@ const SnakeCanvas = ({ trayContainerRef }: SnakeCanvasProps) => {
 
       // Head
       ctx.beginPath();
-      ctx.arc(head.x, head.y, 16, 0, Math.PI * 2);
+      ctx.arc(head.x, head.y, 32, 0, Math.PI * 2); // Thicker head
       ctx.fillStyle = snake.color;
       ctx.fill();
 
@@ -263,33 +263,33 @@ const SnakeCanvas = ({ trayContainerRef }: SnakeCanvasProps) => {
       const perpY = eyeOffX;
 
       for (const side of [-1, 1]) {
-        const ex = head.x + eyeOffX * 5 + perpX * side * 8;
-        const ey = head.y + eyeOffY * 5 + perpY * side * 8;
+        const ex = head.x + eyeOffX * 12 + perpX * side * 15;
+        const ey = head.y + eyeOffY * 12 + perpY * side * 15;
         ctx.beginPath();
-        ctx.arc(ex, ey, 4.5, 0, Math.PI * 2);
+        ctx.arc(ex, ey, 8, 0, Math.PI * 2); // Larger eye whites
         ctx.fillStyle = '#fff';
         ctx.fill();
         ctx.beginPath();
-        ctx.arc(ex + eyeOffX * 1.5, ey + eyeOffY * 1.5, 2.2, 0, Math.PI * 2);
+        ctx.arc(ex + eyeOffX * 3, ey + eyeOffY * 3, 4, 0, Math.PI * 2); // Larger pupils
         ctx.fillStyle = '#222';
         ctx.fill();
       }
 
       // Tongue (when hunting)
       if (snake.state === 'hunting') {
-        const tongueLen = 12 + Math.sin(Date.now() * 0.02) * 5;
+        const tongueLen = 20 + Math.sin(Date.now() * 0.02) * 8;
         ctx.beginPath();
-        ctx.moveTo(head.x + eyeOffX * 16, head.y + eyeOffY * 16);
-        const tx = head.x + eyeOffX * (16 + tongueLen);
-        const ty = head.y + eyeOffY * (16 + tongueLen);
+        ctx.moveTo(head.x + eyeOffX * 32, head.y + eyeOffY * 32);
+        const tx = head.x + eyeOffX * (32 + tongueLen);
+        const ty = head.y + eyeOffY * (32 + tongueLen);
         ctx.lineTo(tx, ty);
         // Fork
         ctx.moveTo(tx, ty);
-        ctx.lineTo(tx + perpX * 4 + eyeOffX * 4, ty + perpY * 4 + eyeOffY * 4);
+        ctx.lineTo(tx + perpX * 7 + eyeOffX * 7, ty + perpY * 7 + eyeOffY * 7);
         ctx.moveTo(tx, ty);
-        ctx.lineTo(tx - perpX * 4 + eyeOffX * 4, ty - perpY * 4 + eyeOffY * 4);
+        ctx.lineTo(tx - perpX * 7 + eyeOffX * 7, ty - perpY * 7 + eyeOffY * 7);
         ctx.strokeStyle = '#e74c3c';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 3;
         ctx.stroke();
       }
     }
