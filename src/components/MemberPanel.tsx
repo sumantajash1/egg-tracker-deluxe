@@ -1,11 +1,10 @@
 import { useMessContext } from '@/context/MessContext';
 import { Button } from '@/components/ui/button';
-import { Minus, Plus, Trash2 } from 'lucide-react';
+import { Minus, Plus } from 'lucide-react';
 
 const MemberPanel = () => {
-  const { members, incrementEgg, decrementEgg, removeMember, pricePerEgg, eggs, currentUserId } = useMessContext();
+  const { members, incrementEgg, decrementEgg, pricePerEgg, eggs, currentUserId } = useMessContext();
   const totalConsumed = eggs.filter(e => e.consumed).length;
-  const isAdmin = members.find(m => m.id === currentUserId)?.role === 'admin';
   const trayEmpty = totalConsumed >= 30;
 
   return (
@@ -15,7 +14,8 @@ const MemberPanel = () => {
       <div className="flex flex-col gap-2.5">
         {members.map((member) => {
           const cost = (member.eggsEaten * pricePerEgg).toFixed(1);
-          const canModify = isAdmin || member.id === currentUserId;
+          // In shared living, anyone can modify anyone's egg count
+          const canModify = true;
 
           return (
             <div
@@ -34,9 +34,9 @@ const MemberPanel = () => {
                   <span className="font-semibold text-sm truncate" style={{ color: member.color }}>
                     {member.name}
                   </span>
-                  {member.role === 'admin' && (
+                  {member.id === currentUserId && (
                     <span className="text-[10px] font-medium bg-primary/15 text-primary px-1.5 py-0.5 rounded-full">
-                      Admin
+                      (You)
                     </span>
                   )}
                 </div>
@@ -69,18 +69,6 @@ const MemberPanel = () => {
                   <Plus className="h-3 w-3" />
                 </Button>
               </div>
-
-              {/* Remove (admin only, not self) */}
-              {isAdmin && member.id !== currentUserId && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 rounded-full text-muted-foreground hover:text-destructive"
-                  onClick={() => removeMember(member.id)}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              )}
             </div>
           );
         })}
