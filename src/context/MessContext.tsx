@@ -72,12 +72,12 @@ export const useMessContext = () => {
 
 export const MessProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
-  
+
   const [group, setGroup] = useState<Group>({ id: '', name: 'My Mess', trayPrice: 0 });
   const [members, setMembers] = useState<Member[]>([]);
   const [eggs, setEggs] = useState<Egg[]>(createInitialEggs);
   const [lastEatEvent, setLastEatEvent] = useState<EatEvent | null>(null);
-  
+
   const currentUserId = user?.id || '';
 
   const pricePerEgg = group.trayPrice > 0 ? group.trayPrice / 30 : 0;
@@ -88,7 +88,7 @@ export const MessProvider = ({ children }: { children: ReactNode }) => {
         // 1. Fetch profiles
         const { data: profiles, error: pError } = await supabase.from('profiles').select('*');
         if (pError) throw pError;
-        
+
         // 2. Fetch the latest tray
         const { data: tray, error: tError } = await supabase
           .from('egg_tray')
@@ -96,37 +96,37 @@ export const MessProvider = ({ children }: { children: ReactNode }) => {
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
-          
+
         let consumptionMap: Record<string, number> = {};
-        
+
         // 3. If a tray exists, load its consumption
         if (tray) {
           setGroup(g => ({ ...g, trayPrice: Number(tray.price), id: tray.id }));
-          
+
           const { data: consumptions } = await supabase
             .from('tray_consumption')
             .select('*')
             .eq('tray_id', tray.id);
-            
+
           if (consumptions) {
             consumptions.forEach((c: any) => {
               consumptionMap[c.user_id] = c.eggs_consumed;
             });
           }
         }
-        
+
         // 4. Combine everything into state
         if (profiles) {
           const fetchedMembers: Member[] = profiles.map((p: any, i: number) => ({
             id: p.id,
-            name: p.name || p.email.split('@')[0], 
+            name: p.name || p.email.split('@')[0],
             color: MEMBER_COLORS[i % MEMBER_COLORS.length],
             pattern: 'striped',
             eggsEaten: consumptionMap[p.id] || 0,
             role: p.id === currentUserId ? 'admin' : 'member'
           }));
           setMembers(fetchedMembers);
-          
+
           if (tray) {
             let initial = createInitialEggs();
             // Iterate members to randomly allocate visual eggs corresponding to their consumption count
@@ -134,7 +134,7 @@ export const MessProvider = ({ children }: { children: ReactNode }) => {
               for (let i = 0; i < m.eggsEaten; i++) {
                 const availableEggs = initial.filter(e => !e.consumed);
                 if (availableEggs.length === 0) break;
-                
+
                 const randomEgg = availableEggs[Math.floor(Math.random() * availableEggs.length)];
                 randomEgg.consumed = true;
                 randomEgg.ownerId = m.id;
@@ -180,7 +180,7 @@ export const MessProvider = ({ children }: { children: ReactNode }) => {
       }
       return m;
     }));
-    
+
     // Sync to DB
     try {
       const { data: tray } = await supabase
@@ -189,13 +189,30 @@ export const MessProvider = ({ children }: { children: ReactNode }) => {
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
-        
+
       if (tray) {
-        await supabase
+        const { data: existingRecord } = await supabase
           .from('tray_consumption')
-          .update({ eggs_consumed: newCount })
+          .select('*')
           .eq('tray_id', tray.id)
-          .eq('user_id', memberId);
+          .eq('user_id', memberId)
+          .maybeSingle();
+
+        if (existingRecord) {
+          await supabase
+            .from('tray_consumption')
+            .update({ eggs_consumed: newCount })
+            .eq('tray_id', tray.id)
+            .eq('user_id', memberId);
+        } else {
+          await supabase
+            .from('tray_consumption')
+            .insert({
+              tray_id: tray.id,
+              user_id: memberId,
+              eggs_consumed: newCount
+            });
+        }
       }
     } catch (e) {
       console.error("Failed to commit increment to db:", e);
@@ -207,7 +224,7 @@ export const MessProvider = ({ children }: { children: ReactNode }) => {
     setEggs(prev => {
       const memberEggs = prev.filter(e => e.ownerId === memberId);
       if (memberEggs.length === 0) return prev;
-          const lastEgg = memberEggs[memberEggs.length - 1];
+      const lastEgg = memberEggs[memberEggs.length - 1];
       return prev.map(e =>
         e.index === lastEgg.index ? { ...e, consumed: false, ownerId: null, isPending: false } : e
       );
@@ -219,7 +236,7 @@ export const MessProvider = ({ children }: { children: ReactNode }) => {
       }
       return m;
     }));
-    
+
     // Sync to DB
     try {
       const { data: tray } = await supabase
@@ -228,13 +245,30 @@ export const MessProvider = ({ children }: { children: ReactNode }) => {
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
-        
+
       if (tray) {
-        await supabase
+        const { data: existingRecord } = await supabase
           .from('tray_consumption')
-          .update({ eggs_consumed: newCount })
+          .select('*')
           .eq('tray_id', tray.id)
-          .eq('user_id', memberId);
+          .eq('user_id', memberId)
+          .maybeSingle();
+
+        if (existingRecord) {
+          await supabase
+            .from('tray_consumption')
+            .update({ eggs_consumed: newCount })
+            .eq('tray_id', tray.id)
+            .eq('user_id', memberId);
+        } else {
+          await supabase
+            .from('tray_consumption')
+            .insert({
+              tray_id: tray.id,
+              user_id: memberId,
+              eggs_consumed: newCount
+            });
+        }
       }
     } catch (e) {
       console.error("Failed to commit decrement to db:", e);
@@ -258,28 +292,28 @@ export const MessProvider = ({ children }: { children: ReactNode }) => {
         .insert({ price, eggs_remaining: 30 })
         .select()
         .single();
-        
+
       if (trayError) {
         console.error("Failed to create tray:", trayError);
         return;
       }
-      
+
       if (newTray && members.length > 0) {
         const consumptionData = members.map(member => ({
           tray_id: newTray.id,
           user_id: member.id,
           eggs_consumed: 0
         }));
-        
+
         const { error: consumptionError } = await supabase
           .from('tray_consumption')
           .insert(consumptionData);
-          
+
         if (consumptionError) {
           console.error("Failed to create consumption records:", consumptionError);
         }
       }
-      
+
       setGroup(g => ({ ...g, trayPrice: price }));
       resetTray();
     } catch (error) {
