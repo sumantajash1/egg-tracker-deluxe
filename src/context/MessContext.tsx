@@ -191,11 +191,28 @@ export const MessProvider = ({ children }: { children: ReactNode }) => {
         .single();
         
       if (tray) {
-        await supabase
+        const { data: existingRecord } = await supabase
           .from('tray_consumption')
-          .update({ eggs_consumed: newCount })
+          .select('*')
           .eq('tray_id', tray.id)
-          .eq('user_id', memberId);
+          .eq('user_id', memberId)
+          .maybeSingle();
+
+        if (existingRecord) {
+          await supabase
+            .from('tray_consumption')
+            .update({ eggs_consumed: newCount })
+            .eq('tray_id', tray.id)
+            .eq('user_id', memberId);
+        } else {
+          await supabase
+            .from('tray_consumption')
+            .insert({
+              tray_id: tray.id,
+              user_id: memberId,
+              eggs_consumed: newCount
+            });
+        }
       }
     } catch (e) {
       console.error("Failed to commit increment to db:", e);
@@ -230,11 +247,28 @@ export const MessProvider = ({ children }: { children: ReactNode }) => {
         .single();
         
       if (tray) {
-        await supabase
+        const { data: existingRecord } = await supabase
           .from('tray_consumption')
-          .update({ eggs_consumed: newCount })
+          .select('*')
           .eq('tray_id', tray.id)
-          .eq('user_id', memberId);
+          .eq('user_id', memberId)
+          .maybeSingle();
+
+        if (existingRecord) {
+          await supabase
+            .from('tray_consumption')
+            .update({ eggs_consumed: newCount })
+            .eq('tray_id', tray.id)
+            .eq('user_id', memberId);
+        } else {
+          await supabase
+            .from('tray_consumption')
+            .insert({
+              tray_id: tray.id,
+              user_id: memberId,
+              eggs_consumed: newCount
+            });
+        }
       }
     } catch (e) {
       console.error("Failed to commit decrement to db:", e);
